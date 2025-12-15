@@ -1,8 +1,7 @@
 {
   "name": "zeyra",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "WebCrypto helper for generating JWK keysets plus AES-GCM encryption and ECDSA signing agents.",
-  "main": "src/index.js",
   "keywords": [
     "webcrypto",
     "aes-gcm",
@@ -13,13 +12,22 @@
   ],
   "license": "MIT",
   "type": "module",
+  "main": "src/index.js",
   "scripts": {
-    "test": "node --test test.js",
+    "test": "node --test test.js && node test.js --bench",
     "bench": "node test.js --bench",
     "prepublishOnly": "npm test"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jortsupetterson/zeyra.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jortsupetterson/zeyra/issues"
+  },
+  "homepage": "https://github.com/jortsupetterson/zeyra#readme",
   "dependencies": {
-    "bytecodec": "^1.1.0"
+    "bytecodec": "^1.2.1"
   },
   "engines": {
     "node": ">=18"
