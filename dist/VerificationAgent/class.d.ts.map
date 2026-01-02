@@ -1,0 +1,1 @@
+{"version":3,"file":"class.d.ts","sourceRoot":"","sources":["../../src/VerificationAgent/class.ts"],"names":[],"mappings":"AAEA,qBAAa,iBAAiB;IAC5B,OAAO,CAAC,UAAU,CAAqB;gBAE3B,eAAe,EAAE,UAAU;IAUjC,MAAM,CAAC,KAAK,EAAE,UAAU,EAAE,SAAS,EAAE,WAAW,GAAG,OAAO,CAAC,OAAO,CAAC;CAS1E"}

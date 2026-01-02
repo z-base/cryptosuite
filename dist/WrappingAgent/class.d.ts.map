@@ -1,0 +1,1 @@
+{"version":3,"file":"class.d.ts","sourceRoot":"","sources":["../../src/WrappingAgent/class.ts"],"names":[],"mappings":"AAAA,qBAAa,aAAa;IACxB,OAAO,CAAC,UAAU,CAAqB;gBAC3B,WAAW,EAAE,UAAU;IAU7B,IAAI,CAAC,SAAS,EAAE,UAAU,GAAG,OAAO,CAAC,WAAW,CAAC;CAexD"}

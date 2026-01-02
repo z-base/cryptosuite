@@ -10,37 +10,44 @@ import {
   CipherCluster,
   SigningCluster,
   VerificationCluster,
-} from "./src/index.js";
+  WrappingAgent,
+  UnwrappingAgent,
+  WrappingCluster,
+  UnwrappingCluster,
+} from "./dist/index.js";
 
 const PLAINTEXT = "mustan kissan paksut posket";
 const plainBytes = Bytes.fromString(PLAINTEXT);
 
 const keyset = await generateKeyset();
 
-test("generateKeyset produces AES-GCM and ECDSA keys", () => {
-  assert.equal(keyset.symmetricJwk.kty, "oct");
-  assert.equal(keyset.publicJwk.kty, "EC");
-  assert.equal(keyset.privateJwk.kty, "EC");
-  assert.ok(keyset.symmetricJwk.k, "AES key material missing");
+test("generateKeyset produces AES-GCM, ECDSA, and RSA keys", () => {
+  assert.equal(keyset.cipherJwk.kty, "oct");
+  assert.equal(keyset.signingJwk.kty, "EC");
+  assert.equal(keyset.verificationJwk.kty, "EC");
+  assert.equal(keyset.wrappingJwk.kty, "RSA");
+  assert.equal(keyset.unwrappingJwk.kty, "RSA");
+  assert.ok(keyset.cipherJwk.k, "AES key material missing");
 });
 
 test("encrypt/decrypt round trip", async () => {
-  const cipherAgent = new CipherAgent(keyset.symmetricJwk);
+  const cipherAgent = new CipherAgent(keyset.cipherJwk);
   const encrypted = await cipherAgent.encrypt(plainBytes);
   const decrypted = await cipherAgent.decrypt(encrypted);
   assert.equal(Bytes.toString(decrypted), PLAINTEXT);
 });
 
 test("sign/verify ciphertext integrity", async () => {
-  const cipherAgent = new CipherAgent(keyset.symmetricJwk);
-  const signingAgent = new SigningAgent(keyset.privateJwk);
-  const verificationAgent = new VerificationAgent(keyset.publicJwk);
+  const cipherAgent = new CipherAgent(keyset.cipherJwk);
+  const signingAgent = new SigningAgent(keyset.signingJwk);
+  const verificationAgent = new VerificationAgent(keyset.verificationJwk);
 
   const payload = await cipherAgent.encrypt(plainBytes);
-  const signature = await signingAgent.sign(payload.ciphertext);
+  const ciphertextBytes = new Uint8Array(payload.ciphertext);
+  const signature = await signingAgent.sign(ciphertextBytes);
 
   const authorized = await verificationAgent.verify(
-    payload.ciphertext,
+    ciphertextBytes,
     signature
   );
   assert.equal(authorized, true);
@@ -61,18 +68,11 @@ test("CipherCluster encrypt/decrypt round trip", async () => {
     body: PLAINTEXT,
     count: 3,
   };
-  const artifact = await CipherCluster.encrypt(keyset.symmetricJwk, resource);
-  assert.equal(typeof artifact.ciphertext, "string");
-  assert.equal(typeof artifact.iv, "string");
-  assert.equal(typeof artifact.digest, "string");
+  const artifact = await CipherCluster.encrypt(keyset.cipherJwk, resource);
+  assert.equal(artifact.ciphertext instanceof ArrayBuffer, true);
+  assert.equal(artifact.iv instanceof Uint8Array, true);
 
-  const expectedDigest = Bytes.toBase64UrlString(
-    await crypto.subtle.digest("SHA-256", Bytes.fromJSON(resource))
-  );
-  assert.equal(artifact.digest, expectedDigest);
-
-  const decrypted = await CipherCluster.decrypt(keyset.symmetricJwk, artifact);
-  assert.equal(decrypted.digest, artifact.digest);
+  const decrypted = await CipherCluster.decrypt(keyset.cipherJwk, artifact);
   assert.equal(decrypted.id, resource.id);
   assert.equal(decrypted.kind, resource.kind);
   assert.equal(decrypted.body, resource.body);
@@ -81,11 +81,11 @@ test("CipherCluster encrypt/decrypt round trip", async () => {
 
 test("SigningCluster/VerificationCluster sign and verify JSON values", async () => {
   const value = { id: "resource-1", action: "read", nonce: 1 };
-  const signature = await SigningCluster.sign(keyset.privateJwk, value);
-  assert.equal(typeof signature, "string");
+  const signature = await SigningCluster.sign(keyset.signingJwk, value);
+  assert.equal(signature instanceof ArrayBuffer, true);
 
   const authorized = await VerificationCluster.verify(
-    keyset.publicJwk,
+    keyset.verificationJwk,
     value,
     signature
   );
@@ -93,11 +93,33 @@ test("SigningCluster/VerificationCluster sign and verify JSON values", async () 
 
   const tampered = { ...value, nonce: 2 };
   const shouldFail = await VerificationCluster.verify(
-    keyset.publicJwk,
+    keyset.verificationJwk,
     tampered,
     signature
   );
   assert.equal(shouldFail, false);
+});
+
+test("WrappingCluster/UnwrappingCluster wrap and unwrap cipher keys", async () => {
+  const wrapped = await WrappingCluster.wrap(
+    keyset.wrappingJwk,
+    keyset.cipherJwk
+  );
+  const unwrapped = await UnwrappingCluster.unwrap(
+    keyset.unwrappingJwk,
+    wrapped
+  );
+  assert.equal(unwrapped.kty, "oct");
+  assert.equal(unwrapped.k, keyset.cipherJwk.k);
+});
+
+test("WrappingAgent/UnwrappingAgent wrap and unwrap cipher keys", async () => {
+  const wrapper = new WrappingAgent(keyset.wrappingJwk);
+  const unwrapper = new UnwrappingAgent(keyset.unwrappingJwk);
+  const wrapped = await wrapper.wrap(keyset.cipherJwk);
+  const unwrapped = await unwrapper.unwrap(wrapped);
+  assert.equal(unwrapped.kty, "oct");
+  assert.equal(unwrapped.k, keyset.cipherJwk.k);
 });
 
 function formatOps(durationMs, iterations) {
@@ -106,9 +128,9 @@ function formatOps(durationMs, iterations) {
 }
 
 async function runBenchmark(iterations = 200) {
-  const cipherAgent = new CipherAgent(keyset.symmetricJwk);
-  const signingAgent = new SigningAgent(keyset.privateJwk);
-  const verificationAgent = new VerificationAgent(keyset.publicJwk);
+  const cipherAgent = new CipherAgent(keyset.cipherJwk);
+  const signingAgent = new SigningAgent(keyset.signingJwk);
+  const verificationAgent = new VerificationAgent(keyset.verificationJwk);
 
   const encryptStart = performance.now();
   for (let i = 0; i < iterations; i++) {
@@ -119,8 +141,9 @@ async function runBenchmark(iterations = 200) {
   const fullStart = performance.now();
   for (let i = 0; i < iterations; i++) {
     const payload = await cipherAgent.encrypt(plainBytes);
-    const signature = await signingAgent.sign(payload.ciphertext);
-    await verificationAgent.verify(payload.ciphertext, signature);
+    const ciphertextBytes = new Uint8Array(payload.ciphertext);
+    const signature = await signingAgent.sign(ciphertextBytes);
+    await verificationAgent.verify(ciphertextBytes, signature);
     await cipherAgent.decrypt(payload);
   }
   const fullDuration = performance.now() - fullStart;

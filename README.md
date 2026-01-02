@@ -1,26 +1,37 @@
 # Zeyra
 
-Managed WebCrypto helpers for storage-ready AES-GCM + ECDSA keysets, with lightweight agents and weakly cached clusters.
+Client-side WebCrypto helpers for AES-GCM encryption, ECDSA signatures, and RSA-OAEP key wrapping, with byte-oriented cluster helpers.
+
+## Compatibility
+
+- WebCrypto (`crypto.subtle`) is stable in evergreen browsers; unprefixed support shipped in Chrome 37 (2014), Firefox 34 (2014), Edge 12 (2015), and Safari 11 (2017).
+- Zeyra relies on AES-GCM, ECDSA P-256, and RSA-OAEP plus wrap/unwrap; legacy EdgeHTML/IE have partial WebCrypto (notably missing ECDSA), so target Chromium Edge (79+, 2020) and modern browsers.
+- ESM only; requires global `crypto.subtle`.
 
 ## Features
 
-- AES-GCM 256 encryption/decryption via `CipherAgent`
-- ECDSA P-256 signing/verification via `SigningAgent` and `VerificationAgent`
-- Managed clusters (`CipherCluster`, `SigningCluster`, `VerificationCluster`) cache agents with WeakRef for large keysets
-- `generateKeyset()` produces an exportable JWK bundle you can store or transport
-- Storage/transport-ready artifacts with base64url payloads and SHA-256 digests
-- Pure WebCrypto, no native add-ons; ships as ESM
-- Works with `bytecodec` for UTF-8, compression, and base64url conversions
+- AES-GCM 256 encryption/decryption via `CipherAgent` and `CipherCluster`
+- ECDSA P-256 sign/verify via `SigningAgent`, `VerificationAgent`, and clusters
+- RSA-OAEP 4096 wrap/unwrap for AES-GCM JWKs
+- `generateKeyset()` yields `cipherJwk`, `signingJwk`, `verificationJwk`, `wrappingJwk`, `unwrappingJwk`
+- Cluster classes cache agents with `WeakRef`; they are a lightweight optimization, not a full end-to-end solution
+- Byte-oriented clusters return raw `Uint8Array` / `ArrayBuffer` (no base64); use `bytecodec` for JSON, compression, and encoding
+- TypeScript source; published package ships compiled JS + `.d.ts`
 
 ## Requirements
 
-- Node.js 18+ (global `crypto.subtle`)
-- ESM environment (`"type": "module"` in `package.json`)
+- Node.js 18+ for server/edge usage
+- ESM environment (`"type": "module"`)
+- `bytecodec` for JSON/bytes/compression helpers
 
 ## Installation
 
-```bash
+```sh
 npm install zeyra
+# or
+pnpm add zeyra
+# or
+yarn add zeyra
 ```
 
 ## Quickstart (agents)
@@ -34,18 +45,17 @@ import {
   VerificationAgent,
 } from "zeyra";
 
-// One-time key material for a resource
-const { symmetricJwk, privateJwk, publicJwk } = await generateKeyset();
+const { cipherJwk, signingJwk, verificationJwk } = await generateKeyset();
 
-// Writers: encrypt + sign
-const cipher = new CipherAgent(symmetricJwk);
-const signer = new SigningAgent(privateJwk);
+const cipher = new CipherAgent(cipherJwk);
+const signer = new SigningAgent(signingJwk);
+const verifier = new VerificationAgent(verificationJwk);
+
 const payload = await cipher.encrypt(Bytes.fromString("hello world"));
-const signature = await signer.sign(payload.ciphertext);
+const ciphertextBytes = new Uint8Array(payload.ciphertext);
+const signature = await signer.sign(ciphertextBytes);
 
-// Readers / servers: verify ownership + decrypt
-const verifier = new VerificationAgent(publicJwk);
-const authorized = await verifier.verify(payload.ciphertext, signature);
+const authorized = await verifier.verify(ciphertextBytes, signature);
 const plaintext = Bytes.toString(await cipher.decrypt(payload));
 ```
 
@@ -59,54 +69,91 @@ import {
   VerificationCluster,
 } from "zeyra";
 
-const { symmetricJwk, privateJwk, publicJwk } = await generateKeyset();
+const { cipherJwk, signingJwk, verificationJwk } = await generateKeyset();
 
 const resource = { id: "file-123", body: "hello world" };
-const artifact = await CipherCluster.encrypt(symmetricJwk, resource);
-const signature = await SigningCluster.sign(privateJwk, resource.id);
+const artifact = await CipherCluster.encrypt(cipherJwk, resource);
+// artifact: { iv: Uint8Array, ciphertext: ArrayBuffer }
 
-// VerificationCluster is designed to run on a per-resource server node.
+const signature = await SigningCluster.sign(signingJwk, resource.id);
 const authorized = await VerificationCluster.verify(
-  publicJwk,
+  verificationJwk,
   resource.id,
   signature
 );
 
-const decrypted = await CipherCluster.decrypt(symmetricJwk, artifact);
+const decrypted = await CipherCluster.decrypt(cipherJwk, artifact);
+```
+
+## Key wrapping flow
+
+```js
+import { generateKeyset, WrappingCluster, UnwrappingCluster } from "zeyra";
+
+const { cipherJwk, wrappingJwk, unwrappingJwk } = await generateKeyset();
+
+const wrapped = await WrappingCluster.wrap(wrappingJwk, cipherJwk);
+const unwrappedCipherJwk = await UnwrappingCluster.unwrap(
+  unwrappingJwk,
+  wrapped
+);
 ```
 
 ## API
 
-- `generateKeyset()` -> `{ symmetricJwk, publicJwk, privateJwk }` (all exportable JWKs)
-- `new CipherAgent(symmetricJwk)`
+- `generateKeyset()` -> `{ cipherJwk, verificationJwk, signingJwk, wrappingJwk, unwrappingJwk }`
+- `new CipherAgent(cipherJwk)`
   - `.encrypt(Uint8Array)` -> `{ iv: Uint8Array, ciphertext: ArrayBuffer }`
   - `.decrypt({ iv, ciphertext })` -> `Uint8Array`
-- `new SigningAgent(privateJwk)`
-  - `.sign(Uint8Array | ArrayBuffer)` -> `ArrayBuffer` (ECDSA P-256 / SHA-256)
-- `new VerificationAgent(publicJwk)`
-  - `.verify(Uint8Array | ArrayBuffer, ArrayBuffer)` -> `boolean`
-- `CipherCluster.encrypt(symmetricJwk, resource)`
-  - -> `{ digest, ciphertext, iv }` (all base64url strings; digest is SHA-256 of JSON bytes, pre-encryption, useful for version checks)
-- `CipherCluster.decrypt(symmetricJwk, artifact)`
-  - -> `{ digest, ...resource }` (resource object restored from compressed JSON)
-- `SigningCluster.sign(privateJwk, value)` -> `Base64URLString`
-- `VerificationCluster.verify(publicJwk, value, signature)` -> `boolean`
+- `new SigningAgent(signingJwk)`
+  - `.sign(Uint8Array)` -> `ArrayBuffer` (ECDSA P-256 / SHA-256)
+- `new VerificationAgent(verificationJwk)`
+  - `.verify(Uint8Array, ArrayBuffer)` -> `boolean`
+- `new WrappingAgent(wrappingJwk)`
+  - `.wrap(cipherJwk)` -> `ArrayBuffer` (RSA-OAEP / SHA-256)
+- `new UnwrappingAgent(unwrappingJwk)`
+  - `.unwrap(ArrayBuffer)` -> `JsonWebKey`
+- `CipherCluster.encrypt(cipherJwk, resource)` -> `{ iv, ciphertext }`
+- `CipherCluster.decrypt(cipherJwk, artifact)` -> `resource`
+- `SigningCluster.sign(signingJwk, value)` -> `ArrayBuffer`
+- `VerificationCluster.verify(verificationJwk, value, signature)` -> `boolean`
+- `WrappingCluster.wrap(wrappingJwk, cipherJwk)` -> `ArrayBuffer`
+- `UnwrappingCluster.unwrap(unwrappingJwk, wrapped)` -> `JsonWebKey`
 
-See the implementations in `src/index.js` and friends for details.
+## Serialization helpers
+
+Zeyra keeps clusters byte-oriented. Use `bytecodec` when you need to serialize or store artifacts.
+
+```js
+import { Bytes } from "bytecodec";
+
+const artifact = await CipherCluster.encrypt(cipherJwk, resource);
+const ciphertextB64 = Bytes.toBase64UrlString(
+  new Uint8Array(artifact.ciphertext)
+);
+const ivB64 = Bytes.toBase64UrlString(artifact.iv);
+```
 
 ## Testing and benchmarks
 
-- Run tests: `npm test` (uses Node's built-in `node:test` runner against `test.js`)
-- Run microbenchmarks (skipped by default): `npm run bench`
+- Build: `npm run build` (outputs `dist/`)
+- Run tests: `npm test` (builds `dist/`, then runs `node --test`)
+- Run benchmarks: `npm run bench`
   - Pass iterations: `npm run bench -- --iterations=500`
-  - Reports ops/sec for encryption and the full encrypt/sign/verify/decrypt pipeline.
+
+## Benchmarks (local)
+
+Results will vary by hardware, runtime, and payload size. Run `npm run bench` to reproduce.
+
+- Node v22.14.0 (Windows), iterations=200
+  - encrypt only: 44.68ms (4476.3 ops/sec)
+  - full pipeline: 115.15ms (1736.9 ops/sec)
 
 ## Notes
 
-- CipherCluster assumes one unique random key per resource (no derivations or shared usage).
-- Cluster classes are intended for client-side usage; `VerificationCluster`/`VerificationAgent` can be hosted per-resource to pre-verify access before downstream identity or ACL checks.
-- Cluster serialization uses JSON and adds a `digest` field; avoid using `digest` in resource objects.
-- WeakRef caching keeps memory usage loose and GC-friendly by design.
+- Zeyra is intended for client-side encryption workflows; server/edge usage is supported where WebCrypto is available.
+- Cluster helpers cache keys with `WeakRef` and keep `CryptoKey` material private inside agents.
+- `CipherCluster` compresses JSON payloads before encryption; `SigningCluster`/`VerificationCluster` sign JSON values.
 
 ## License
 
