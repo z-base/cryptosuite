@@ -1,11 +1,12 @@
 {
   "name": "zeyra",
-  "version": "2.0.0",
-  "description": "Client-side WebCrypto helpers for AES-GCM encryption, ECDSA signatures, and RSA-OAEP key wrapping.",
+  "version": "2.1.0",
+  "description": "Client-side WebCrypto helpers for AES-GCM encryption, ECDSA signatures, RSA-OAEP key wrapping, HMAC, and key generation.",
   "keywords": [
     "webcrypto",
     "aes-gcm",
     "ecdsa",
+    "hmac",
     "rsa-oaep",
     "jwk",
     "encryption",

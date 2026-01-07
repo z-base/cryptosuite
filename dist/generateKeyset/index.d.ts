@@ -4,5 +4,6 @@ export declare function generateKeyset(): Promise<{
     signingJwk: JsonWebKey;
     wrappingJwk: JsonWebKey;
     unwrappingJwk: JsonWebKey;
+    hmacJwk: JsonWebKey;
 }>;
 //# sourceMappingURL=index.d.ts.map

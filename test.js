@@ -3,7 +3,10 @@ import test from "node:test";
 import { performance } from "node:perf_hooks";
 import { Bytes } from "bytecodec";
 import {
+  deriveRootKeys,
+  generateHmacKey,
   generateKeyset,
+  HmacAgent,
   SigningAgent,
   VerificationAgent,
   CipherAgent,
@@ -15,19 +18,72 @@ import {
   WrappingCluster,
   UnwrappingCluster,
 } from "./dist/index.js";
+import { deriveCipherKey } from "./dist/deriveRootKeys/deriveCipherKey.js";
+import { deriveHmacKey } from "./dist/deriveRootKeys/deriveHmacKey.js";
+import { generateCipherKey } from "./dist/generateKeyset/generateCipherKey/index.js";
+import { generateSignPair } from "./dist/generateKeyset/generateSignPair/index.js";
+import { generateWrapPair } from "./dist/generateKeyset/generateWrapPair/index.js";
 
 const PLAINTEXT = "mustan kissan paksut posket";
 const plainBytes = Bytes.fromString(PLAINTEXT);
 
 const keyset = await generateKeyset();
 
-test("generateKeyset produces AES-GCM, ECDSA, and RSA keys", () => {
+test("generateKeyset produces AES-GCM, ECDSA, RSA, and HMAC keys", () => {
   assert.equal(keyset.cipherJwk.kty, "oct");
   assert.equal(keyset.signingJwk.kty, "EC");
   assert.equal(keyset.verificationJwk.kty, "EC");
   assert.equal(keyset.wrappingJwk.kty, "RSA");
   assert.equal(keyset.unwrappingJwk.kty, "RSA");
+  assert.equal(keyset.hmacJwk.kty, "oct");
   assert.ok(keyset.cipherJwk.k, "AES key material missing");
+  assert.ok(keyset.hmacJwk.k, "HMAC key material missing");
+});
+
+test("generateCipherKey returns AES-GCM key material", async () => {
+  const cipherJwk = await generateCipherKey();
+  assert.equal(cipherJwk.kty, "oct");
+  assert.ok(cipherJwk.k, "AES key material missing");
+});
+
+test("generateSignPair returns ECDSA signing and verification keys", async () => {
+  const { signingJwk, verificationJwk } = await generateSignPair();
+  assert.equal(signingJwk.kty, "EC");
+  assert.equal(verificationJwk.kty, "EC");
+
+  const signer = new SigningAgent(signingJwk);
+  const verifier = new VerificationAgent(verificationJwk);
+  const signature = await signer.sign(plainBytes);
+  const authorized = await verifier.verify(plainBytes, signature);
+  assert.equal(authorized, true);
+});
+
+test("generateWrapPair returns RSA wrapping and unwrapping keys", async () => {
+  const { wrappingJwk, unwrappingJwk } = await generateWrapPair();
+  assert.equal(wrappingJwk.kty, "RSA");
+  assert.equal(unwrappingJwk.kty, "RSA");
+
+  const wrapper = new WrappingAgent(wrappingJwk);
+  const unwrapper = new UnwrappingAgent(unwrappingJwk);
+  const wrapped = await wrapper.wrap(keyset.cipherJwk);
+  const unwrapped = await unwrapper.unwrap(wrapped);
+  assert.equal(unwrapped.kty, "oct");
+});
+
+test("generateHmacKey and HmacAgent sign/verify challenges", async () => {
+  const hmacJwk = await generateHmacKey();
+  assert.equal(hmacJwk.kty, "oct");
+  assert.ok(hmacJwk.k, "HMAC key material missing");
+
+  const hmacAgent = new HmacAgent(hmacJwk);
+  const signature = await hmacAgent.sign(plainBytes);
+  const authorized = await hmacAgent.verify(plainBytes, signature);
+  assert.equal(authorized, true);
+
+  const tampered = new Uint8Array(plainBytes);
+  tampered[0] ^= 1;
+  const shouldFail = await hmacAgent.verify(tampered, signature);
+  assert.equal(shouldFail, false);
 });
 
 test("encrypt/decrypt round trip", async () => {
@@ -122,6 +178,47 @@ test("WrappingAgent/UnwrappingAgent wrap and unwrap cipher keys", async () => {
   assert.equal(unwrapped.k, keyset.cipherJwk.k);
 });
 
+test("deriveHmacKey and deriveCipherKey import deterministic raw keys", async () => {
+  const raw = new Uint8Array(32).fill(7);
+  const hmacJwk = await deriveHmacKey(raw);
+  const cipherJwk = await deriveCipherKey(raw);
+  assert.equal(hmacJwk.kty, "oct");
+  assert.equal(cipherJwk.kty, "oct");
+  assert.ok(hmacJwk.k, "Derived HMAC key material missing");
+  assert.ok(cipherJwk.k, "Derived AES key material missing");
+
+  const hmacAgain = await deriveHmacKey(raw);
+  const cipherAgain = await deriveCipherKey(raw);
+  assert.equal(hmacAgain.k, hmacJwk.k);
+  assert.equal(cipherAgain.k, cipherJwk.k);
+});
+
+test("deriveRootKeys returns false for missing or invalid PRF results", async () => {
+  assert.equal(await deriveRootKeys(undefined), false);
+
+  const badResults = {
+    first: new Uint8Array(32),
+    second: new Uint8Array(32),
+  };
+  assert.equal(await deriveRootKeys(badResults), false);
+});
+
+test("deriveRootKeys hashes PRF results into HMAC and cipher keys", async () => {
+  const first = new Uint8Array(32).fill(1).buffer;
+  const second = new Uint8Array(32).fill(2).buffer;
+  const rootKeys = await deriveRootKeys({ first, second });
+  assert.notEqual(rootKeys, false);
+  if (rootKeys === false) return;
+  assert.equal(rootKeys.hmacJwk.kty, "oct");
+  assert.equal(rootKeys.cipherJwk.kty, "oct");
+
+  const rootKeysAgain = await deriveRootKeys({ first, second });
+  assert.notEqual(rootKeysAgain, false);
+  if (rootKeysAgain === false) return;
+  assert.equal(rootKeysAgain.hmacJwk.k, rootKeys.hmacJwk.k);
+  assert.equal(rootKeysAgain.cipherJwk.k, rootKeys.cipherJwk.k);
+});
+
 function formatOps(durationMs, iterations) {
   const opsPerSec = iterations / (durationMs / 1000);
   return `${durationMs.toFixed(2)}ms (${opsPerSec.toFixed(1)} ops/sec)`;
@@ -131,12 +228,20 @@ async function runBenchmark(iterations = 200) {
   const cipherAgent = new CipherAgent(keyset.cipherJwk);
   const signingAgent = new SigningAgent(keyset.signingJwk);
   const verificationAgent = new VerificationAgent(keyset.verificationJwk);
+  const hmacAgent = new HmacAgent(keyset.hmacJwk);
 
   const encryptStart = performance.now();
   for (let i = 0; i < iterations; i++) {
     await cipherAgent.encrypt(plainBytes);
   }
   const encryptDuration = performance.now() - encryptStart;
+
+  const hmacStart = performance.now();
+  for (let i = 0; i < iterations; i++) {
+    const signature = await hmacAgent.sign(plainBytes);
+    await hmacAgent.verify(plainBytes, signature);
+  }
+  const hmacDuration = performance.now() - hmacStart;
 
   const fullStart = performance.now();
   for (let i = 0; i < iterations; i++) {
@@ -150,6 +255,7 @@ async function runBenchmark(iterations = 200) {
 
   return {
     encryptDuration,
+    hmacDuration,
     fullDuration,
     iterations,
   };
@@ -170,14 +276,10 @@ const benchmarkIterations =
     ? parsedIterations
     : 200;
 
-test(
-  "benchmark encrypt/sign/verify/decrypt",
-  { skip: !shouldBenchmark },
-  async (t) => {
-    const { encryptDuration, fullDuration, iterations } = await runBenchmark(
-      benchmarkIterations
-    );
-    t.diagnostic(`encrypt only: ${formatOps(encryptDuration, iterations)}`);
-    t.diagnostic(`full pipeline: ${formatOps(fullDuration, iterations)}`);
-  }
-);
+test("benchmark encrypt/sign/verify/decrypt/hmac", { skip: !shouldBenchmark }, async (t) => {
+  const { encryptDuration, hmacDuration, fullDuration, iterations } =
+    await runBenchmark(benchmarkIterations);
+  t.diagnostic(`encrypt only: ${formatOps(encryptDuration, iterations)}`);
+  t.diagnostic(`hmac sign/verify: ${formatOps(hmacDuration, iterations)}`);
+  t.diagnostic(`full pipeline: ${formatOps(fullDuration, iterations)}`);
+});

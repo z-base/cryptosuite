@@ -1,19 +1,22 @@
 # Zeyra
 
-Client-side WebCrypto helpers for AES-GCM encryption, ECDSA signatures, and RSA-OAEP key wrapping, with byte-oriented cluster helpers.
+Client-side WebCrypto helpers for AES-GCM encryption, ECDSA signatures, RSA-OAEP key wrapping, HMAC, and key generation, with byte-oriented cluster helpers.
 
 ## Compatibility
 
 - WebCrypto (`crypto.subtle`) is stable in evergreen browsers; unprefixed support shipped in Chrome 37 (2014), Firefox 34 (2014), Edge 12 (2015), and Safari 11 (2017).
-- Zeyra relies on AES-GCM, ECDSA P-256, and RSA-OAEP plus wrap/unwrap; legacy EdgeHTML/IE have partial WebCrypto (notably missing ECDSA), so target Chromium Edge (79+, 2020) and modern browsers.
+- Zeyra relies on AES-GCM, ECDSA P-256, RSA-OAEP, and HMAC SHA-256 plus wrap/unwrap; legacy EdgeHTML/IE have partial WebCrypto (notably missing ECDSA), so target Chromium Edge (79+, 2020) and modern browsers.
 - ESM only; requires global `crypto.subtle`.
 
 ## Features
 
 - AES-GCM 256 encryption/decryption via `CipherAgent` and `CipherCluster`
 - ECDSA P-256 sign/verify via `SigningAgent`, `VerificationAgent`, and clusters
+- HMAC SHA-256 sign/verify via `HmacAgent` + key generation via `generateHmacKey()`
 - RSA-OAEP 4096 wrap/unwrap for AES-GCM JWKs
-- `generateKeyset()` yields `cipherJwk`, `signingJwk`, `verificationJwk`, `wrappingJwk`, `unwrappingJwk`
+- WebAuthn PRF root key derivation via `deriveRootKeys()`
+- `generateKeyset()` yields `cipherJwk`, `signingJwk`, `verificationJwk`, `wrappingJwk`, `unwrappingJwk`, `hmacJwk`
+- Individual key generators are available when you only need one key type.
 - Cluster classes cache agents with `WeakRef`; they are a lightweight optimization, not a full end-to-end solution
 - Byte-oriented clusters return raw `Uint8Array` / `ArrayBuffer` (no base64); use `bytecodec` for JSON, compression, and encoding
 - TypeScript source; published package ships compiled JS + `.d.ts`
@@ -99,12 +102,47 @@ const unwrappedCipherJwk = await UnwrappingCluster.unwrap(
 );
 ```
 
+## HMAC flow
+
+```js
+import { generateHmacKey, HmacAgent } from "zeyra";
+
+const hmacJwk = await generateHmacKey();
+const hmac = new HmacAgent(hmacJwk);
+
+const challenge = new TextEncoder().encode("hello world");
+const signature = await hmac.sign(challenge);
+const authorized = await hmac.verify(challenge, signature);
+```
+
+## PRF root key derivation
+
+Pass WebAuthn PRF results (from `assertion.getClientExtensionResults()?.prf?.results`) to derive HMAC + AES root keys.
+
+```js
+import { deriveRootKeys } from "zeyra";
+
+const prfResults = assertion.getClientExtensionResults()?.prf?.results;
+const rootKeys = await deriveRootKeys(prfResults);
+if (!rootKeys) throw new Error("Missing PRF results");
+
+const { hmacJwk, cipherJwk } = rootKeys;
+```
+
 ## API
 
-- `generateKeyset()` -> `{ cipherJwk, verificationJwk, signingJwk, wrappingJwk, unwrappingJwk }`
+- `generateKeyset()` -> `{ cipherJwk, verificationJwk, signingJwk, wrappingJwk, unwrappingJwk, hmacJwk }`
+- `generateHmacKey()` -> `JsonWebKey` (HMAC SHA-256)
+- `generateCipherKey()` -> `JsonWebKey` (AES-GCM 256)
+- `generateSignPair()` -> `{ signingJwk, verificationJwk }` (ECDSA P-256)
+- `generateWrapPair()` -> `{ wrappingJwk, unwrappingJwk }` (RSA-OAEP 4096)
+- `deriveRootKeys(prfResults)` -> `{ hmacJwk, cipherJwk } | false`
 - `new CipherAgent(cipherJwk)`
   - `.encrypt(Uint8Array)` -> `{ iv: Uint8Array, ciphertext: ArrayBuffer }`
   - `.decrypt({ iv, ciphertext })` -> `Uint8Array`
+- `new HmacAgent(hmacJwk)`
+  - `.sign(BufferSource)` -> `ArrayBuffer` (HMAC SHA-256)
+  - `.verify(BufferSource, BufferSource)` -> `boolean`
 - `new SigningAgent(signingJwk)`
   - `.sign(Uint8Array)` -> `ArrayBuffer` (ECDSA P-256 / SHA-256)
 - `new VerificationAgent(verificationJwk)`
@@ -146,8 +184,9 @@ const ivB64 = Bytes.toBase64UrlString(artifact.iv);
 Results will vary by hardware, runtime, and payload size. Run `npm run bench` to reproduce.
 
 - Node v22.14.0 (Windows), iterations=200
-  - encrypt only: 44.68ms (4476.3 ops/sec)
-  - full pipeline: 115.15ms (1736.9 ops/sec)
+  - encrypt only: 31.68ms (6313.6 ops/sec)
+  - hmac sign/verify: 40.48ms (4940.1 ops/sec)
+  - full pipeline: 122.61ms (1631.2 ops/sec)
 
 ## Notes
 
