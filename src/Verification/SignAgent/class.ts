@@ -1,16 +1,16 @@
 import { toBufferSource } from "bytecodec";
-import { assertEcdsaP256PrivateKey } from "../../.helpers/assertEcdsaP256PrivateKey.js";
+import { assertEd25519PrivateKey } from "../../.helpers/assertEd25519PrivateKey.js";
 import type { SignJWK } from "../../.types/jwk.js";
 
 export class SignAgent {
   private keyPromise: Promise<CryptoKey>;
 
   constructor(signingJwk: SignJWK) {
-    assertEcdsaP256PrivateKey(signingJwk, "SignAgent");
+    assertEd25519PrivateKey(signingJwk, "SignAgent");
     this.keyPromise = crypto.subtle.importKey(
       "jwk",
       signingJwk,
-      { name: "ECDSA", namedCurve: "P-256" },
+      { name: "Ed25519" },
       false,
       ["sign"],
     );
@@ -18,10 +18,6 @@ export class SignAgent {
 
   async sign(bytes: Uint8Array): Promise<ArrayBuffer> {
     const key = await this.keyPromise;
-    return crypto.subtle.sign(
-      { name: "ECDSA", hash: "SHA-256" },
-      key,
-      toBufferSource(bytes),
-    );
+    return crypto.subtle.sign("Ed25519", key, toBufferSource(bytes));
   }
 }

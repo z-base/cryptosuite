@@ -1,5 +1,5 @@
+import { fromBase64UrlString } from "bytecodec";
 import { ZeyraError } from "../.errors/class.js";
-import { decodeBase64Url } from "./decodeBase64Url.js";
 
 const RSA_OAEP_ALG = "RSA-OAEP-256";
 const RSA_OAEP_USE = "enc";
@@ -83,7 +83,15 @@ export function assertRsaOaep4096PublicKey(
     );
   }
 
-  const modulus = decodeBase64Url(jwk.n, `${context}: modulus`);
+  let modulus: Uint8Array;
+  try {
+    modulus = fromBase64UrlString(jwk.n);
+  } catch {
+    throw new ZeyraError(
+      "BASE64URL_INVALID",
+      `${context}: invalid base64url modulus.`,
+    );
+  }
   if (modulus.byteLength !== RSA_MODULUS_BYTES) {
     throw new ZeyraError(
       "RSA_OAEP_MODULUS_LENGTH_INVALID",
@@ -91,7 +99,15 @@ export function assertRsaOaep4096PublicKey(
     );
   }
 
-  const exponent = decodeBase64Url(jwk.e, `${context}: exponent`);
+  let exponent: Uint8Array;
+  try {
+    exponent = fromBase64UrlString(jwk.e);
+  } catch {
+    throw new ZeyraError(
+      "BASE64URL_INVALID",
+      `${context}: invalid base64url exponent.`,
+    );
+  }
   let first = 0;
   while (first < exponent.length && exponent[first] === 0) first += 1;
   const remaining = exponent.length - first;

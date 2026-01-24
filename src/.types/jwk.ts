@@ -45,22 +45,20 @@ export type UnwrapJWK = JsonWebKey & {
 };
 
 export type SignJWK = JsonWebKey & {
-  kty: "EC";
-  crv: "P-256";
+  kty: "OKP";
+  crv: "Ed25519";
   x: string;
-  y: string;
   d: string;
-  alg?: "ES256";
+  alg?: "EdDSA";
   use?: "sig";
   key_ops?: ("sign")[];
 };
 
 export type VerifyJWK = JsonWebKey & {
-  kty: "EC";
-  crv: "P-256";
+  kty: "OKP";
+  crv: "Ed25519";
   x: string;
-  y: string;
-  alg?: "ES256";
+  alg?: "EdDSA";
   use?: "sig";
   key_ops?: ("verify")[];
   d?: never;

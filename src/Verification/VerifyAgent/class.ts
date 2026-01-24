@@ -1,16 +1,16 @@
 import { toBufferSource } from "bytecodec";
-import { assertEcdsaP256PublicKey } from "../../.helpers/assertEcdsaP256PublicKey.js";
+import { assertEd25519PublicKey } from "../../.helpers/assertEd25519PublicKey.js";
 import type { VerifyJWK } from "../../.types/jwk.js";
 
 export class VerifyAgent {
   private keyPromise: Promise<CryptoKey>;
 
   constructor(verificationJwk: VerifyJWK) {
-    assertEcdsaP256PublicKey(verificationJwk, "VerifyAgent");
+    assertEd25519PublicKey(verificationJwk, "VerifyAgent");
     this.keyPromise = crypto.subtle.importKey(
       "jwk",
       verificationJwk,
-      { name: "ECDSA", namedCurve: "P-256" },
+      { name: "Ed25519" },
       false,
       ["verify"],
     );
@@ -19,7 +19,7 @@ export class VerifyAgent {
   async verify(bytes: Uint8Array, signature: ArrayBuffer): Promise<boolean> {
     const key = await this.keyPromise;
     return crypto.subtle.verify(
-      { name: "ECDSA", hash: "SHA-256" },
+      "Ed25519",
       key,
       signature,
       toBufferSource(bytes),

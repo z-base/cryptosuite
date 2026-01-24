@@ -1,5 +1,6 @@
 import { toBufferSource } from "bytecodec";
 import { assertAesGcm256Key } from "../../.helpers/assertAesGcm256Key.js";
+import { assertAesGcmIv96 } from "../../.helpers/assertAesGcmIv96.js";
 import type { CipherJWK } from "../../.types/jwk.js";
 export class CipherAgent {
   private keyPromise: Promise<CryptoKey>;
@@ -35,6 +36,7 @@ export class CipherAgent {
     ciphertext: ArrayBuffer;
   }): Promise<Uint8Array> {
     const key = await this.keyPromise;
+    assertAesGcmIv96(iv, "CipherAgent.decrypt");
     const plaintext = await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: toBufferSource(iv) },
       key,

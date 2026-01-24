@@ -1,5 +1,5 @@
+import { fromBase64UrlString } from "bytecodec";
 import { ZeyraError } from "../.errors/class.js";
-import { decodeBase64Url } from "./decodeBase64Url.js";
 
 const AES_GCM_ALG = "A256GCM";
 const AES_GCM_USE = "enc";
@@ -68,7 +68,15 @@ export function assertAesGcm256Key(jwk: JsonWebKey, context = "key"): void {
     );
   }
 
-  const keyBytes = decodeBase64Url(jwk.k, `${context}: key material`);
+  let keyBytes: Uint8Array;
+  try {
+    keyBytes = fromBase64UrlString(jwk.k);
+  } catch {
+    throw new ZeyraError(
+      "BASE64URL_INVALID",
+      `${context}: invalid base64url key material.`,
+    );
+  }
   if (keyBytes.byteLength !== AES_GCM_KEY_BYTES) {
     throw new ZeyraError(
       "AES_GCM_KEY_SIZE_INVALID",
