@@ -1,6 +1,6 @@
 {
-  "name": "zeyra",
-  "version": "3.0.0",
+  "name": "@z-base/cryptosuite",
+  "version": "1.0.0",
   "description": "JS/TS WebCrypto toolkit for encrypt/decrypt, sign/verify, and wrap/unwrap",
   "keywords": [
     "webcrypto",
