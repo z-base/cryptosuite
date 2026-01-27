@@ -1,6 +1,5 @@
-import { fromJSON, toJSON, fromCompressed, toCompressed } from "bytecodec";
 import { CipherAgent } from "../CipherAgent/class.js";
-import type { CipherJWK } from "../../.types/jwk.js";
+import type { CipherJWK } from "../index.js";
 
 export class CipherCluster {
   static #agents = new WeakMap<CipherJWK, WeakRef<CipherAgent>>();
@@ -17,22 +16,17 @@ export class CipherCluster {
 
   static async encrypt(
     cipherJwk: CipherJWK,
-    resource: any,
+    bytes: Uint8Array,
   ): Promise<{ iv: Uint8Array; ciphertext: ArrayBuffer }> {
     const agent = CipherCluster.#loadAgent(cipherJwk);
-    const bytes = fromJSON(resource);
-
-    const compressed = await toCompressed(bytes);
-    return await agent.encrypt(compressed);
+    return await agent.encrypt(bytes);
   }
 
   static async decrypt(
     cipherJwk: CipherJWK,
     artifact: { iv: Uint8Array; ciphertext: ArrayBuffer },
-  ): Promise<any> {
+  ): Promise<Uint8Array> {
     const agent = CipherCluster.#loadAgent(cipherJwk);
-    const bytes = await agent.decrypt(artifact);
-    const decompressed = await fromCompressed(bytes);
-    return toJSON(decompressed);
+    return await agent.decrypt(artifact);
   }
 }

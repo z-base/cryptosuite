@@ -7,3 +7,4 @@
 - Removed and added methods.
 - Added the opaque identifiers concept.
 - Added explicit error handling.
+- Added excessive testing.

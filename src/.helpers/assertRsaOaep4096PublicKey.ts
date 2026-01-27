@@ -1,38 +1,35 @@
 import { fromBase64UrlString } from "bytecodec";
-import { ZeyraError } from "../.errors/class.js";
+import { CryptosuiteError } from "../.errors/class.js";
+import { RSA_OAEP_ALG, RSA_OAEP_USE, RSA_MODULUS_BYTES, RSA_PUBLIC_OPS } from "./shared.js";
 
-const RSA_OAEP_ALG = "RSA-OAEP-256";
-const RSA_OAEP_USE = "enc";
-const RSA_MODULUS_BYTES = 512;
-const RSA_PUBLIC_OPS = ["wrapKey", "encrypt"] as const;
 
 export function assertRsaOaep4096PublicKey(
   jwk: JsonWebKey,
   context = "key",
 ): void {
   if (!jwk || typeof jwk !== "object") {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_PUBLIC_KEY_EXPECTED",
       `${context}: expected an RSA-OAEP public JWK.`,
     );
   }
 
   if (jwk.kty !== "RSA") {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_PUBLIC_KEY_EXPECTED",
       `${context}: expected kty RSA.`,
     );
   }
 
   if (jwk.alg && jwk.alg !== RSA_OAEP_ALG) {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_ALG_INVALID",
       `${context}: expected alg ${RSA_OAEP_ALG}.`,
     );
   }
 
   if (jwk.use && jwk.use !== RSA_OAEP_USE) {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_USE_INVALID",
       `${context}: expected use ${RSA_OAEP_USE}.`,
     );
@@ -40,21 +37,21 @@ export function assertRsaOaep4096PublicKey(
 
   if (jwk.key_ops) {
     if (!Array.isArray(jwk.key_ops)) {
-      throw new ZeyraError(
+      throw new CryptosuiteError(
         "RSA_OAEP_KEY_OPS_INVALID",
         `${context}: key_ops must be an array.`,
       );
     }
     const ops = new Set(jwk.key_ops);
     if (!ops.has("wrapKey")) {
-      throw new ZeyraError(
+      throw new CryptosuiteError(
         "RSA_OAEP_KEY_OPS_INVALID",
         `${context}: key_ops must include wrapKey.`,
       );
     }
     for (const op of ops) {
       if (!RSA_PUBLIC_OPS.includes(op as (typeof RSA_PUBLIC_OPS)[number])) {
-        throw new ZeyraError(
+        throw new CryptosuiteError(
           "RSA_OAEP_KEY_OPS_INVALID",
           `${context}: unexpected key_ops value.`,
         );
@@ -63,7 +60,7 @@ export function assertRsaOaep4096PublicKey(
   }
 
   if (typeof jwk.n !== "string" || typeof jwk.e !== "string") {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_PUBLIC_KEY_EXPECTED",
       `${context}: missing modulus or exponent.`,
     );
@@ -77,7 +74,7 @@ export function assertRsaOaep4096PublicKey(
     typeof jwk.dq === "string" ||
     typeof jwk.qi === "string"
   ) {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_PUBLIC_KEY_EXPECTED",
       `${context}: private parameters are not allowed.`,
     );
@@ -87,13 +84,13 @@ export function assertRsaOaep4096PublicKey(
   try {
     modulus = fromBase64UrlString(jwk.n);
   } catch {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "BASE64URL_INVALID",
       `${context}: invalid base64url modulus.`,
     );
   }
   if (modulus.byteLength !== RSA_MODULUS_BYTES) {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_MODULUS_LENGTH_INVALID",
       `${context}: expected 4096-bit modulus.`,
     );
@@ -103,7 +100,7 @@ export function assertRsaOaep4096PublicKey(
   try {
     exponent = fromBase64UrlString(jwk.e);
   } catch {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "BASE64URL_INVALID",
       `${context}: invalid base64url exponent.`,
     );
@@ -117,7 +114,7 @@ export function assertRsaOaep4096PublicKey(
     exponent[first + 1] !== 0x00 ||
     exponent[first + 2] !== 0x01
   ) {
-    throw new ZeyraError(
+    throw new CryptosuiteError(
       "RSA_OAEP_EXPONENT_INVALID",
       `${context}: expected exponent 65537.`,
     );

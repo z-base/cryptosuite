@@ -1,214 +1,191 @@
-# Zeyra
+# cryptosuite
 
-Client-side WebCrypto helpers for AES-GCM encryption, ECDSA signatures, RSA-OAEP key wrapping, HMAC, and key generation, with byte-oriented cluster helpers.
+Developer-experience-first cryptography toolkit that lets you powerfully express cryptographic intentions through a semantic and declarative API surface.
 
 ## Compatibility
 
-- WebCrypto (`crypto.subtle`) is stable in evergreen browsers; unprefixed support shipped in Chrome 37 (2014), Firefox 34 (2014), Edge 12 (2015), and Safari 11 (2017).
-- Zeyra relies on AES-GCM, ECDSA P-256, RSA-OAEP, and HMAC SHA-256 plus wrap/unwrap; legacy EdgeHTML/IE have partial WebCrypto (notably missing ECDSA), so target Chromium Edge (79+, 2020) and modern browsers.
-- ESM only; requires global `crypto.subtle`.
+- Runtimes: Modern JavaScript hosts with WebCrypto.
+- Module format: ESM-only (no CJS build).
+- Required globals / APIs: `crypto`, `crypto.subtle`, `crypto.getRandomValues`.
+- TypeScript: bundled types.
 
-## Features
+## Goals
 
-- AES-GCM 256 encryption/decryption via `CipherAgent` and `CipherCluster`
-- ECDSA P-256 sign/verify via `SigningAgent`, `VerificationAgent`, and clusters
-- HMAC SHA-256 sign/verify via `HmacAgent` and `HmacCluster` + key generation via `generateHmacKey()`
-- RSA-OAEP 4096 wrap/unwrap for AES-GCM JWKs
-- WebAuthn PRF root key derivation via `deriveRootKeys()`
-- `generateKeyset()` yields `cipherJwk`, `signingJwk`, `verificationJwk`, `wrappingJwk`, `unwrappingJwk`, `hmacJwk`
-- Individual key generators are available when you only need one key type.
-- Cluster classes cache agents with `WeakRef`; they are a lightweight optimization, not a full end-to-end solution
-- Byte-oriented clusters return raw `Uint8Array` / `ArrayBuffer` (no base64); use `bytecodec` for JSON, compression, and encoding
-- TypeScript source; published package ships compiled JS + `.d.ts`
-
-## Requirements
-
-- Node.js 18+ for server/edge usage
-- ESM environment (`"type": "module"`)
-- `bytecodec` for JSON/bytes/compression helpers
+- Minimal, strict WebCrypto wrappers with explicit `CryptosuiteError` codes.
+- Byte-oriented APIs (`Uint8Array` and `ArrayBuffer`) to avoid ambiguous inputs.
+- Consistent JWK validation for AES-GCM, HMAC, Ed25519, and RSA-OAEP.
+- No side effects on import; all work happens per call.
+- Clean separation between agents (stateful) and clusters (cached).
 
 ## Installation
 
 ```sh
-npm install zeyra
+npm install @z-base/cryptosuite
 # or
-pnpm add zeyra
+pnpm add @z-base/cryptosuite
 # or
-yarn add zeyra
+yarn add @z-base/cryptosuite
 ```
 
-## Quickstart (agents)
+## Usage
 
-```js
-import { Bytes } from "bytecodec";
-import {
-  generateKeyset,
-  CipherAgent,
-  SigningAgent,
-  VerificationAgent,
-} from "zeyra";
+### Cryptosuite wrapper
 
-const { cipherJwk, signingJwk, verificationJwk } = await generateKeyset();
-
-const cipher = new CipherAgent(cipherJwk);
-const signer = new SigningAgent(signingJwk);
-const verifier = new VerificationAgent(verificationJwk);
-
-const payload = await cipher.encrypt(Bytes.fromString("hello world"));
-const ciphertextBytes = new Uint8Array(payload.ciphertext);
-const signature = await signer.sign(ciphertextBytes);
-
-const authorized = await verifier.verify(ciphertextBytes, signature);
-const plaintext = Bytes.toString(await cipher.decrypt(payload));
+```ts
+import { Cryptosuite } from "@z-base/cryptosuite";
+// The `Cryptosuite` convenience class wraps classes and functions into an intuitive structure.
+const cipherJwk = await Cryptosuite.cipher.generateKey();
+const payload = new Uint8Array([1, 2, 3]);
+const artifact = await Cryptosuite.cipher.encrypt(cipherJwk, payload);
+const roundtrip = await Cryptosuite.cipher.decrypt(cipherJwk, artifact);
 ```
 
-## Managed cluster flow
+### OpaqueIdentifier
 
-```js
+```ts
 import {
-  generateKeyset,
+  deriveOID,
+  generateOID,
+  validateOID,
+  type OpaqueIdentifier,
+} from "@z-base/cryptosuite";
+
+const oid = await generateOID(); // 43 random base64url chars
+const derived = await deriveOID(idBytesFromSomewhere); // 43 deterministic base64url chars
+const valid = validateOID(uncontrolledOID); // 43 base64url chars | false
+if (!valid) return;
+```
+
+### Cipher
+
+```ts
+import { fromJSON, toJSON } from "@z-base/bytecodec";
+import {
+  deriveCipherKey,
   CipherCluster,
-  SigningCluster,
+  CipherAgent,
+  type CipherJWK,
+} from "@z-base/cryptosuite";
+
+const cipherJwk = await deriveCipherKey(deterministicBytes);
+
+const state = { name: "Bob", email: "bob@email.com" };
+const enc = await CipherCluster.encrypt(cipherJwk, fromJSON(state)); // {iv, ciphertext}
+const dec = await CipherCluster.decrypt(cipherJwk, enc);
+
+const restored = toJSON(dec);
+console.log(restored.name); // "Bob"
+```
+
+### Exchange
+
+```ts
+import { fromString, toString } from "@z-base/bytecodec";
+import {
+  generateCipherKey,
+  generateExchangePair,
+  ExchangeCluster,
+  WrapAgent,
+  type WrapJWK,
+  UnwrapAgent,
+  type UnwrapJWK,
+  CipherAgent,
+  type CipherJWK,
+} from "@z-base/cryptosuite";
+
+const { wrapJwk, unwrapJwk } = await generateExchangePair();
+const encryptJwk = await generateCipherKey();
+const encryptAgent = new CipherAgent(encryptJwk);
+const body = await encryptAgent.encrypt(fromString("Hello world!")); // {iv, ciphertext}
+const header = await ExchangeCluster.wrap(wrapJwk, encryptJwk); // ArrayBuffer
+const message = { header, body };
+const decryptJwk = (await ExchangeCluster.unwrap(
+  unwrapJwk,
+  message.header,
+)) as CipherJWK;
+const decryptAgent = new CipherAgent(decryptJwk);
+const decryptedBody = await decryptAgent.decrypt(message.body);
+const messageText = toString(decryptedBody); // "Hello world!"
+```
+
+### HMAC
+
+```ts
+import { fromString } from "@z-base/bytecodec";
+import {
+  generateHMACKey,
+  HMACCluster,
+  HMACAgent,
+  type HMACJWK,
+} from "@z-base/cryptosuite";
+
+const hmacJwk = await generateHMACKey();
+
+const challenge = crypto.getRandomValues(new Uint8Array(32));
+const sig = await HMACCluster.sign(hmacJwk, challenge); // ArrayBuffer
+const ok = await HMACCluster.verify(hmacJwk, challenge, sig); // true | false
+```
+
+### Verification
+
+```ts
+import {
+  generateVerificationPair,
   VerificationCluster,
-} from "zeyra";
+  SignAgent,
+  type SignJWK,
+  VerifyAgent,
+  type VerifyJWK,
+} from "@z-base/cryptosuite";
 
-const { cipherJwk, signingJwk, verificationJwk } = await generateKeyset();
-
-const resource = { id: "file-123", body: "hello world" };
-const artifact = await CipherCluster.encrypt(cipherJwk, resource);
-// artifact: { iv: Uint8Array, ciphertext: ArrayBuffer }
-
-const signature = await SigningCluster.sign(signingJwk, resource.id);
-const authorized = await VerificationCluster.verify(
-  verificationJwk,
-  resource.id,
-  signature
-);
-
-const decrypted = await CipherCluster.decrypt(cipherJwk, artifact);
+const { signJwk, verifyJwk } = await generateVerificationPair();
+const payload = new Uint8Array([9, 8, 7]);
+const sig = await VerificationCluster.sign(signJwk, payload); // ArrayBuffer
+const ok = await VerificationCluster.verify(verifyJwk, payload, sig); // true | false
 ```
 
-## Key wrapping flow
+## Runtime behavior
 
-```js
-import { generateKeyset, WrappingCluster, UnwrappingCluster } from "zeyra";
+### Node
 
-const { cipherJwk, wrappingJwk, unwrappingJwk } = await generateKeyset();
+Uses Node's global WebCrypto (`globalThis.crypto`) when available. Node is not the primary target, but tests and benchmarks run on Node 18+.
 
-const wrapped = await WrappingCluster.wrap(wrappingJwk, cipherJwk);
-const unwrappedCipherJwk = await UnwrappingCluster.unwrap(
-  unwrappingJwk,
-  wrapped
-);
-```
+### Browsers / Edge runtimes
 
-## HMAC flow
+Uses `crypto.subtle` and `crypto.getRandomValues`. Ed25519 and RSA-OAEP support vary by engine; unsupported operations throw `CryptosuiteError` codes.
 
-```js
-import { generateHmacKey, HmacAgent } from "zeyra";
+### Validation & errors
 
-const hmacJwk = await generateHmacKey();
-const hmac = new HmacAgent(hmacJwk);
+Validation failures throw `CryptosuiteError` with a `code` string (for example `AES_GCM_KEY_EXPECTED`, `RSA_OAEP_UNSUPPORTED`, `ED25519_ALG_INVALID`). Cryptographic failures (e.g., decrypt with the wrong key) bubble the underlying WebCrypto error.
 
-const value = new TextEncoder().encode("hello world");
-const signature = await hmac.sign(value);
-const authorized = await hmac.verify(value, signature);
-```
+### Security considerations
 
-## HMAC cluster flow
+- Keep `{iv, ciphertext}` together and never mix IVs across messages or keys.
+- Treat all JWKs and raw key bytes as secrets; never log them and rotate on exposure.
+- Always sign a canonical byte serialization so verifiers see identical bytes.
+- Ciphertext length leaks; add padding at your protocol layer if size is sensitive.
+- Handle decrypt/verify failures uniformly; don't leak which check failed.
 
-`HmacCluster` signs JSON-serializable values.
+## Tests
 
-```js
-import { generateHmacKey, HmacCluster } from "zeyra";
+Suite: unit + integration (Node), E2E (Playwright)
+Matrix: Chromium / Firefox / WebKit + mobile emulation (Pixel 5, iPhone 12)
+Coverage: c8 — 100% statements/branches/functions/lines (Node)
 
-const hmacJwk = await generateHmacKey();
-const value = { id: "file-123", body: "hello world" };
+## Benchmarks
 
-const signature = await HmacCluster.sign(hmacJwk, value);
-const authorized = await HmacCluster.verify(hmacJwk, value, signature);
-```
+How it was run: `node benchmark/bench.js`
+Environment: Node v22.14.0 (win32 x64)
+Results:
 
-## PRF root key derivation
+| Benchmark            | Result                    |
+| -------------------- | ------------------------- |
+| AES-GCM encrypt      | 30.41ms (6575.9 ops/sec)  |
+| HMAC sign+verify     | 29.95ms (6678.1 ops/sec)  |
+| Ed25519 sign+verify  | 76.45ms (2616.0 ops/sec)  |
+| RSA-OAEP wrap+unwrap | 1224.07ms (163.4 ops/sec) |
 
-Pass WebAuthn PRF results (from `assertion.getClientExtensionResults()?.prf?.results`) to derive HMAC + AES root keys.
-
-```js
-import { deriveRootKeys } from "zeyra";
-
-const prfResults = assertion.getClientExtensionResults()?.prf?.results;
-const rootKeys = await deriveRootKeys(prfResults);
-if (!rootKeys) throw new Error("Missing PRF results");
-
-const { hmacJwk, cipherJwk } = rootKeys;
-```
-
-## API
-
-- `generateKeyset()` -> `{ cipherJwk, verificationJwk, signingJwk, wrappingJwk, unwrappingJwk, hmacJwk }`
-- `generateHmacKey()` -> `JsonWebKey` (HMAC SHA-256)
-- `generateCipherKey()` -> `JsonWebKey` (AES-GCM 256)
-- `generateSignPair()` -> `{ signingJwk, verificationJwk }` (ECDSA P-256)
-- `generateWrapPair()` -> `{ wrappingJwk, unwrappingJwk }` (RSA-OAEP 4096)
-- `deriveRootKeys(prfResults)` -> `{ hmacJwk, cipherJwk } | false`
-- `new CipherAgent(cipherJwk)`
-  - `.encrypt(Uint8Array)` -> `{ iv: Uint8Array, ciphertext: ArrayBuffer }`
-  - `.decrypt({ iv, ciphertext })` -> `Uint8Array`
-- `new HmacAgent(hmacJwk)`
-  - `.sign(BufferSource)` -> `ArrayBuffer` (HMAC SHA-256)
-  - `.verify(BufferSource, BufferSource)` -> `boolean`
-- `new SigningAgent(signingJwk)`
-  - `.sign(Uint8Array)` -> `ArrayBuffer` (ECDSA P-256 / SHA-256)
-- `new VerificationAgent(verificationJwk)`
-  - `.verify(Uint8Array, ArrayBuffer)` -> `boolean`
-- `new WrappingAgent(wrappingJwk)`
-  - `.wrap(cipherJwk)` -> `ArrayBuffer` (RSA-OAEP / SHA-256)
-- `new UnwrappingAgent(unwrappingJwk)`
-  - `.unwrap(ArrayBuffer)` -> `JsonWebKey`
-- `CipherCluster.encrypt(cipherJwk, resource)` -> `{ iv, ciphertext }`
-- `CipherCluster.decrypt(cipherJwk, artifact)` -> `resource`
-- `SigningCluster.sign(signingJwk, value)` -> `ArrayBuffer`
-- `VerificationCluster.verify(verificationJwk, value, signature)` -> `boolean`
-- `HmacCluster.sign(hmacJwk, value)` -> `ArrayBuffer`
-- `HmacCluster.verify(hmacJwk, value, signature)` -> `boolean`
-- `WrappingCluster.wrap(wrappingJwk, cipherJwk)` -> `ArrayBuffer`
-- `UnwrappingCluster.unwrap(unwrappingJwk, wrapped)` -> `JsonWebKey`
-
-## Serialization helpers
-
-Zeyra keeps clusters byte-oriented. Use `bytecodec` when you need to serialize or store artifacts.
-
-```js
-import { Bytes } from "bytecodec";
-
-const artifact = await CipherCluster.encrypt(cipherJwk, resource);
-const ciphertextB64 = Bytes.toBase64UrlString(
-  new Uint8Array(artifact.ciphertext)
-);
-const ivB64 = Bytes.toBase64UrlString(artifact.iv);
-```
-
-## Testing and benchmarks
-
-- Build: `npm run build` (outputs `dist/`)
-- Run tests: `npm test` (builds `dist/`, then runs `node --test`)
-- Run benchmarks: `npm run bench`
-  - Pass iterations: `npm run bench -- --iterations=500`
-
-## Benchmarks (local)
-
-Results will vary by hardware, runtime, and payload size. Run `npm run bench` to reproduce.
-
-- Node v22.14.0 (Windows), iterations=200
-  - encrypt only: 31.68ms (6313.6 ops/sec)
-  - hmac sign/verify: 40.48ms (4940.1 ops/sec)
-  - full pipeline: 122.61ms (1631.2 ops/sec)
-
-## Notes
-
-- Zeyra is intended for client-side encryption workflows; server/edge usage is supported where WebCrypto is available.
-- Cluster helpers cache keys with `WeakRef` and keep `CryptoKey` material private inside agents.
-- `CipherCluster` compresses JSON payloads before encryption; `SigningCluster`/`VerificationCluster`/`HmacCluster` sign JSON values.
+Results vary by machine.
 
 ## License
 

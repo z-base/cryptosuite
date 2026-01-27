@@ -1,5 +1,13 @@
-export type ZeyraErrorCode =
+export type CryptosuiteErrorCode =
   | "BASE64URL_INVALID"
+  | "CRYPTO_UNAVAILABLE"
+  | "SUBTLE_UNAVAILABLE"
+  | "GET_RANDOM_VALUES_UNAVAILABLE"
+  | "AES_GCM_UNSUPPORTED"
+  | "HMAC_SHA256_UNSUPPORTED"
+  | "RSA_OAEP_UNSUPPORTED"
+  | "ED25519_UNSUPPORTED"
+  | "SHA256_UNSUPPORTED"
   | "BUFFER_SOURCE_EXPECTED"
   | "AES_GCM_KEY_EXPECTED"
   | "AES_GCM_ALG_INVALID"
@@ -29,13 +37,13 @@ export type ZeyraErrorCode =
   | "ED25519_KEY_OPS_INVALID"
   | "ED25519_USE_INVALID";
 
-export class ZeyraError extends Error {
-  readonly code: ZeyraErrorCode;
+export class CryptosuiteError extends Error {
+  readonly code: CryptosuiteErrorCode;
 
-  constructor(code: ZeyraErrorCode, message?: string) {
+  constructor(code: CryptosuiteErrorCode, message?: string) {
     const detail = message ?? code;
-    super(`{zeyra} ${detail}`);
+    super(`{@z-base/cryptosuite} ${detail}`);
     this.code = code;
-    this.name = "ZeyraError";
+    this.name = "CryptosuiteError";
   }
 }

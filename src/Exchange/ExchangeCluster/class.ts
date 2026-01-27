@@ -1,6 +1,7 @@
 import { WrapAgent } from "../WrapAgent/class.js";
 import { UnwrapAgent } from "../UnwrapAgent/class.js";
-import type { CipherJWK, UnwrapJWK, WrapJWK } from "../../.types/jwk.js";
+import type { UnwrapJWK, WrapJWK } from "../index.js";
+import type { CipherJWK } from "../../Cipher/index.js";
 
 export type ExchangeAgentType = "wrap" | "unwrap";
 export type ExchangeAgentByType = {

@@ -1,1 +1,0 @@
-{"version":3,"file":"class.d.ts","sourceRoot":"","sources":["../../src/UnwrappingAgent/class.ts"],"names":[],"mappings":"AAAA,qBAAa,eAAe;IAC1B,OAAO,CAAC,UAAU,CAAqB;gBAC3B,aAAa,EAAE,UAAU;IAU/B,MAAM,CAAC,OAAO,EAAE,WAAW,GAAG,OAAO,CAAC,UAAU,CAAC;CAexD"}

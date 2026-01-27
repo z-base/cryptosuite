@@ -1,1 +1,0 @@
-{"version":3,"file":"index.d.ts","sourceRoot":"","sources":["../../src/deriveRootKeys/index.ts"],"names":[],"mappings":"AAIA,MAAM,MAAM,QAAQ,GAAG;IAAE,OAAO,EAAE,UAAU,CAAC;IAAC,SAAS,EAAE,UAAU,CAAA;CAAE,CAAC;AAMtE,wBAAsB,cAAc,CAClC,UAAU,EAAE,kCAAkC,CAAC,SAAS,CAAC,GAAG,SAAS,GACpE,OAAO,CAAC,QAAQ,GAAG,KAAK,CAAC,CAe3B"}

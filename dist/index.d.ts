@@ -1,21 +1,51 @@
-import { generateKeyset } from "./generateKeyset/index.js";
-import { deriveRootKeys } from "./deriveRootKeys/index.js";
-import { CipherAgent } from "./CipherAgent/class.js";
-import { HmacAgent } from "./HmacAgent/class.js";
-import { SigningAgent } from "./SigningAgent/class.js";
-import { VerificationAgent } from "./VerificationAgent/class.js";
-import { CipherCluster } from "./CipherCluster/class.js";
-import { SigningCluster } from "./SigningCluster/class.js";
-import { VerificationCluster } from "./VerificationCluster/class.js";
-import { WrappingAgent } from "./WrappingAgent/class.js";
-import { WrappingCluster } from "./WrappingCluster/class.js";
-import { UnwrappingAgent } from "./UnwrappingAgent/class.js";
-import { UnwrappingCluster } from "./UnwrappingCluster/class.js";
-import { generateSignPair } from "./generateKeyset/generateSignPair/index.js";
-import { generateWrapPair } from "./generateKeyset/generateWrapPair/index.js";
-import { generateCipherKey } from "./generateKeyset/generateCipherKey/index.js";
-import { generateHmacKey } from "./generateKeyset/generateHmacKey/index.js";
-import { HmacCluster } from "./HmacCluster/class.js";
-export { deriveRootKeys, generateHmacKey, generateCipherKey, generateSignPair, generateWrapPair, generateKeyset, CipherAgent, HmacAgent, SigningAgent, VerificationAgent, WrappingAgent, UnwrappingAgent, CipherCluster, SigningCluster, VerificationCluster, WrappingCluster, UnwrappingCluster, HmacCluster, };
-export type { RootKeys } from "./deriveRootKeys/index.js";
+/***/
+import { CipherCluster, deriveCipherKey, generateCipherKey } from "./Cipher/index.js";
+/***/
+import { ExchangeCluster, generateExchangePair } from "./Exchange/index.js";
+/***/
+import { deriveHMACKey, generateHMACKey, HMACCluster } from "./HMAC/index.js";
+/***/
+import { deriveOID, generateOID, validateOID } from "./OID/index.js";
+/***/
+import { generateVerificationPair, VerificationCluster } from "./Verification/index.js";
+/***/
+export { generateCipherKey, deriveCipherKey, CipherAgent, CipherCluster, type CipherJWK, } from "./Cipher/index.js";
+/***/
+export { generateExchangePair, WrapAgent, UnwrapAgent, ExchangeCluster, type WrapJWK, type UnwrapJWK, } from "./Exchange/index.js";
+/***/
+export { generateHMACKey, deriveHMACKey, HMACAgent, HMACCluster, type HMACJWK, } from "./HMAC/index.js";
+/***/
+export { deriveOID, generateOID, validateOID, type OpaqueIdentifier, } from "./OID/index.js";
+/***/
+export { generateVerificationPair, SignAgent, VerifyAgent, VerificationCluster, type SignJWK, type VerifyJWK, } from "./Verification/index.js";
+/***/
+export declare class Cryptosuite {
+    static readonly cipher: {
+        encrypt: typeof CipherCluster.encrypt;
+        decrypt: typeof CipherCluster.decrypt;
+        deriveKey: typeof deriveCipherKey;
+        generateKey: typeof generateCipherKey;
+    };
+    static readonly exchange: {
+        wrap: typeof ExchangeCluster.wrap;
+        unwrap: typeof ExchangeCluster.unwrap;
+        generatePair: typeof generateExchangePair;
+    };
+    static readonly hmac: {
+        sign: typeof HMACCluster.sign;
+        verify: typeof HMACCluster.verify;
+        deriveKey: typeof deriveHMACKey;
+        generateKey: typeof generateHMACKey;
+    };
+    static readonly oid: {
+        derive: typeof deriveOID;
+        generate: typeof generateOID;
+        validate: typeof validateOID;
+    };
+    static readonly verification: {
+        sign: typeof VerificationCluster.sign;
+        verify: typeof VerificationCluster.verify;
+        generatePair: typeof generateVerificationPair;
+    };
+}
 //# sourceMappingURL=index.d.ts.map

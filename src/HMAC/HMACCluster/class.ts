@@ -1,6 +1,5 @@
-import { toBufferSource, fromJSON } from "bytecodec";
 import { HMACAgent } from "../HMACAgent/class.js";
-import type { HMACJWK } from "../../.types/jwk.js";
+import type { HMACJWK } from "../index.js";
 
 export class HMACCluster {
   static #agents = new WeakMap<HMACJWK, WeakRef<HMACAgent>>();
@@ -15,19 +14,17 @@ export class HMACCluster {
     return agent;
   }
 
-  static async sign(hmacJwk: HMACJWK, value: any): Promise<ArrayBuffer> {
+  static async sign(hmacJwk: HMACJWK, bytes: Uint8Array): Promise<ArrayBuffer> {
     const agent = HMACCluster.#loadAgent(hmacJwk);
-    const bytes = toBufferSource(fromJSON(value));
     return await agent.sign(bytes);
   }
 
   static async verify(
     hmacJwk: HMACJWK,
-    value: any,
+    bytes: Uint8Array,
     signature: ArrayBuffer,
   ): Promise<boolean> {
     const agent = HMACCluster.#loadAgent(hmacJwk);
-    const bytes = toBufferSource(fromJSON(value));
     return await agent.verify(bytes, signature);
   }
 }
