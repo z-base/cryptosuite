@@ -3,18 +3,18 @@ import {
   CipherCluster,
   deriveCipherKey,
   generateCipherKey,
-} from "./Cipher/index.js";
+} from './Cipher/index.js'
 /***/
-import { ExchangeCluster, generateExchangePair } from "./Exchange/index.js";
+import { ExchangeCluster, generateExchangePair } from './Exchange/index.js'
 /***/
-import { deriveHMACKey, generateHMACKey, HMACCluster } from "./HMAC/index.js";
+import { deriveHMACKey, generateHMACKey, HMACCluster } from './HMAC/index.js'
 /***/
-import { deriveOID, generateOID, validateOID } from "./OID/index.js";
+import { deriveOID, generateOID, validateOID } from './OID/index.js'
 /***/
 import {
   generateVerificationPair,
   VerificationCluster,
-} from "./Verification/index.js";
+} from './Verification/index.js'
 /***/
 export {
   generateCipherKey,
@@ -22,7 +22,7 @@ export {
   CipherAgent,
   CipherCluster,
   type CipherJWK,
-} from "./Cipher/index.js";
+} from './Cipher/index.js'
 /***/
 export {
   generateExchangePair,
@@ -31,7 +31,7 @@ export {
   ExchangeCluster,
   type WrapJWK,
   type UnwrapJWK,
-} from "./Exchange/index.js";
+} from './Exchange/index.js'
 /***/
 export {
   generateHMACKey,
@@ -39,14 +39,14 @@ export {
   HMACAgent,
   HMACCluster,
   type HMACJWK,
-} from "./HMAC/index.js";
+} from './HMAC/index.js'
 /***/
 export {
   deriveOID,
   generateOID,
   validateOID,
   type OpaqueIdentifier,
-} from "./OID/index.js";
+} from './OID/index.js'
 /***/
 export {
   generateVerificationPair,
@@ -55,7 +55,7 @@ export {
   VerificationCluster,
   type SignJWK,
   type VerifyJWK,
-} from "./Verification/index.js";
+} from './Verification/index.js'
 /***/
 
 export class Cryptosuite {
@@ -64,26 +64,26 @@ export class Cryptosuite {
     decrypt: CipherCluster.decrypt,
     deriveKey: deriveCipherKey,
     generateKey: generateCipherKey,
-  };
+  }
   static readonly exchange = {
     wrap: ExchangeCluster.wrap,
     unwrap: ExchangeCluster.unwrap,
     generatePair: generateExchangePair,
-  };
+  }
   static readonly hmac = {
     sign: HMACCluster.sign,
     verify: HMACCluster.verify,
     deriveKey: deriveHMACKey,
     generateKey: generateHMACKey,
-  };
+  }
   static readonly oid = {
     derive: deriveOID,
     generate: generateOID,
     validate: validateOID,
-  };
+  }
   static readonly verification = {
     sign: VerificationCluster.sign,
     verify: VerificationCluster.verify,
     generatePair: generateVerificationPair,
-  };
+  }
 }

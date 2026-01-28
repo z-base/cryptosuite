@@ -1,14 +1,14 @@
-import { CryptosuiteError } from "../.errors/class.js";
-import { assertCryptoAvailable } from "./assertCryptoAvailable.js";
+import { CryptosuiteError } from '../.errors/class.js'
+import { assertCryptoAvailable } from './assertCryptoAvailable.js'
 
 export function assertGetRandomValuesAvailable(
-  context = "crypto.getRandomValues",
+  context = 'crypto.getRandomValues'
 ): void {
-  assertCryptoAvailable(context);
-  if (typeof globalThis.crypto.getRandomValues !== "function") {
+  assertCryptoAvailable(context)
+  if (typeof globalThis.crypto.getRandomValues !== 'function') {
     throw new CryptosuiteError(
-      "GET_RANDOM_VALUES_UNAVAILABLE",
-      `${context}: crypto.getRandomValues is unavailable.`,
-    );
+      'GET_RANDOM_VALUES_UNAVAILABLE',
+      `${context}: crypto.getRandomValues is unavailable.`
+    )
   }
 }
