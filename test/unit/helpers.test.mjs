@@ -141,6 +141,8 @@ function rsaPrivateJwk(overrides = {}) {
 // Crypto availability
 
 test("assertCryptoAvailable passes when crypto exists", () => {
+  const needsStub = typeof globalThis.crypto === "undefined";
+  if (needsStub) setCrypto({});
   assertCryptoAvailable("test");
 });
 

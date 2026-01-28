@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { webcrypto } from "node:crypto";
 import {
   generateCipherKey,
   deriveCipherKey,
@@ -22,6 +23,10 @@ import {
   validateOID,
   Cryptosuite,
 } from "../../dist/index.js";
+
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
 
 const PLAINTEXT = new Uint8Array([1, 2, 3, 4, 5, 6]);
 
