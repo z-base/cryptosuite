@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { toBase64UrlString } from "bytecodec";
+import { toBase64UrlString } from "@z-base/bytecodec";
 import {
   generateCipherKey,
   deriveCipherKey,

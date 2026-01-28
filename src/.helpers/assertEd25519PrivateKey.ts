@@ -33,7 +33,7 @@ export function assertEd25519PrivateKey(
     )
   }
 
-  if (jwk.alg && jwk.alg !== ED25519_ALG) {
+  if (jwk.alg && jwk.alg !== ED25519_ALG && jwk.alg !== 'Ed25519') {
     throw new CryptosuiteError(
       'ED25519_ALG_INVALID',
       `${context}: expected alg ${ED25519_ALG}.`

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { toBase64UrlString } from "bytecodec";
+import { toBase64UrlString } from "@z-base/bytecodec";
 import { CryptosuiteError } from "../../dist/.errors/class.js";
 import { assertCryptoAvailable } from "../../dist/.helpers/assertCryptoAvailable.js";
 import { assertSubtleAvailable } from "../../dist/.helpers/assertSubtleAvailable.js";
